@@ -1,36 +1,83 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "./supabase";
 import "./App.css";
 
 function App() {
   const [tasks, setTasks] = useState([]);
   const [task, setTask] = useState("");
 
-  const addTask = () => {
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching tasks:", error);
+      return;
+    }
+
+    setTasks(data);
+  };
+
+  const addTask = async () => {
     if (task.trim() === "") return;
 
-    setTasks([
-      ...tasks,
-      {
-        id: Date.now(),
-        title: task,
-        completed: false,
-      },
-    ]);
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert([
+        {
+          title: task.trim(),
+          completed: false,
+        },
+      ])
+      .select()
+      .single();
 
+    if (error) {
+      console.error("Error adding task:", error);
+      return;
+    }
+
+    setTasks([...tasks, data]);
     setTask("");
   };
 
-  const toggleTask = (id) => {
+  const toggleTask = async (id, completed) => {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ completed: !completed })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error updating task:", error);
+      return;
+    }
+
     setTasks(
       tasks.map((item) =>
         item.id === id
-          ? { ...item, completed: !item.completed }
+          ? { ...item, completed: !completed }
           : item
       )
     );
   };
 
-  const deleteTask = (id) => {
+  const deleteTask = async (id) => {
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting task:", error);
+      return;
+    }
+
     setTasks(tasks.filter((item) => item.id !== id));
   };
 
@@ -38,6 +85,7 @@ function App() {
     <div className="app">
       <div className="container">
         <h1>☁️ Cloud Task Manager</h1>
+
         <p className="subtitle">
           Manage your student tasks efficiently
         </p>
@@ -58,13 +106,17 @@ function App() {
 
         <div className="task-list">
           {tasks.length === 0 ? (
-            <p className="empty">No tasks yet. Add your first task!</p>
+            <p className="empty">
+              No tasks yet. Add your first task!
+            </p>
           ) : (
             tasks.map((item) => (
               <div className="task" key={item.id}>
                 <span
                   className={item.completed ? "completed" : ""}
-                  onClick={() => toggleTask(item.id)}
+                  onClick={() =>
+                    toggleTask(item.id, item.completed)
+                  }
                 >
                   {item.title}
                 </span>
@@ -72,7 +124,9 @@ function App() {
                 <div>
                   <button
                     className="complete-btn"
-                    onClick={() => toggleTask(item.id)}
+                    onClick={() =>
+                      toggleTask(item.id, item.completed)
+                    }
                   >
                     {item.completed ? "Undo" : "Complete"}
                   </button>
